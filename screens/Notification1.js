@@ -50,12 +50,13 @@ function Notification1() {
           website: data.Website,
           vision:data.Vision,
           tel:data.Tel,
-          facebook:data.FB
+          facebook:data.FB,
+          Page:Notification1
         })}
       >
         <View style={styles.blockimg}>
           <Image
-            source={{ uri: 'https://culture.lru.ac.th/th/wp-content/uploads/2023/08/logo-2555.jpg' }}
+            source={require("../assets/Screenshot_1719437570.png")}
             style={styles.image}
             resizeMode="contain"
           />
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
   blockimg: {
     flexDirection: 'row',
     backgroundColor: 'white',
-    borderRadius: 10,
+    borderRadius: 10, 
     width: 350,
     height: 150,
     alignItems: "center",
@@ -118,6 +119,7 @@ const styles = StyleSheet.create({
       width: 10,
       height: 7,
     },
+    elevation: 3, 
   },
   image: {
     width: '100%',

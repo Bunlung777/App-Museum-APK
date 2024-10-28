@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Image } from "expo-image";
-import { StyleSheet, Text, View, Pressable,ScrollView,TextInput } from "react-native";
+import { StyleSheet, Text, View, Pressable,ScrollView,TextInput,TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import SectionForm from "../components/SectionForm";
 import { FontFamily, FontSize, Border, Color, Padding } from "../GlobalStyles";
-import { addDoc, collection, getDocs,doc,getDoc,onSnapshot } from 'firebase/firestore';
+import { addDoc, collection, getDocs,doc,getDoc,onSnapshot,updateDoc } from 'firebase/firestore';
 import { db,firebase } from '../Database/firebase';
 import 'firebase/compat/storage';
 import {widthPercentageToDP as wp, heightPercentageToDP as hp} from 'react-native-responsive-screen';
@@ -20,27 +20,59 @@ const Home = () => {
   const [imageSelect, setImageSelect] = useState(null);
   const [originalData, setOriginalData] = useState([]);
   const [data, setData] = useState([]);
+
+  async function updateData(documentId, newData) {
+    const UpdeteValue = doc(db, 'MuseumApp', documentId);
+    await updateDoc(UpdeteValue, newData);
+    console.log('Document successfully updated!');
+  }
+
+  const toggleLike = async (item) => {
+    const newLikeValue = item.Like === 0 ? 1 : 0;
+    const newData = { Like: newLikeValue };
+    await updateData(item.id, newData);
+
+    // Update local state to reflect the change
+    const newDataArray = fetchedData.map((i) =>
+      i.id === item.id ? { ...i, Like: newLikeValue } : i
+    );
+    setFetchedData(newDataArray);
+  };
+
   useFonts({
     'Kanit-Medium': require('../assets/fonts/Kanit-Medium.ttf'),
     'Kanit-Light': require('../assets/fonts/Kanit-Light.ttf'),
   });
+  
   useEffect(() => {
-    fetchData();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', () => {
+      // โหลดข้อมูลใหม่จากฐานข้อมูลหรือทำอย่างอื่นตามที่ต้องการ
+      console.log('Home screen is focused, refresh data here');
+      fetchData(); // เรียกใช้ฟังก์ชันโหลดข้อมูลใหม่
+    });
 
-  async function fetchData() {
-    try {
-      const querySnapshot = await getDocs(collection(db, "MuseumApp"));
-      const data = [];
-      querySnapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() });
-      });
-      setFetchedData(data);
-      setOriginalData(data);
-    } catch (error) {
-      console.log("Error getting documents: ", error);
+    return unsubscribe;
+  }, [navigation]);
+
+const fetchData = async (retryCount = 3) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "MuseumApp"));
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const sortedData = data.sort((a, b) => b.Like - a.Like);
+    setFetchedData(sortedData);
+    setOriginalData(sortedData);
+  } catch (error) {
+    console.error("Error fetching documents: ", error);
+    if (retryCount > 0) {
+      setTimeout(() => fetchData(retryCount - 1), 2000); // Retry after 2 seconds
+    } else {
+      alert('Failed to fetch data. Please try again later.');
     }
   }
+};
+
+
+
 const storageRef = firebase.storage().ref('images/kUqjIfjmUC1xclJlp3dt.jpg');
 
 useEffect(() => {
@@ -112,17 +144,17 @@ storageRef.getDownloadURL()
       <View style={styles.homeChild} />
       <Pressable
         style={[styles.banner, styles.groupPosition1]}
-        onPress={() => navigation.navigate('DetailMuseum', {
-          id: data.id, 
-          name: data.Name, 
-          detail: data.Detail,
-          img: data.ImageUrls,
-          Page: Home,
-          Lat: data.Lat,
-          Long: data.Long,
-          Date: data.Date,
-          Address: data.Address
-        })}
+        // onPress={() => navigation.navigate('DetailMuseum', {
+        //   id: data.id, 
+        //   name: data.Name, 
+        //   detail: data.Detail,
+        //   img: data.ImageUrls,
+        //   Page: Home,
+        //   Lat: data.Lat,
+        //   Long: data.Long,
+        //   Date: data.Date,
+        //   Address: data.Address
+        // })}
       >
         <Image
           style={styles.iconLayout1}
@@ -231,11 +263,12 @@ storageRef.getDownloadURL()
                 <Text style={[styles.dentistRoyal, styles.text6Typo]}>{item.Type}</Text>
               </View>
             </View>
+          <TouchableOpacity onPress={() => toggleLike(item)}>
             <Image
               style={styles.component1Icon}
-              contentFit="cover"
-              source={require("../assets/component-1.png")}
+              source={item.Like === 0 ? require('../assets/component-11.png') : require('../assets/component-1.png')}
             />
+          </TouchableOpacity>
           </View>
         </View>
       ))}

@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Border, FontSize, FontFamily, Color, Padding } from "../GlobalStyles";
-import { addDoc, collection, getDocs } from 'firebase/firestore';
+import { addDoc, collection, getDocs, updateDoc,doc,onSnapshot } from 'firebase/firestore';
 import { db,firebase } from '../Database/firebase';
 import 'firebase/compat/storage';
 import { AntDesign } from '@expo/vector-icons';
@@ -27,6 +27,25 @@ const AllMuseum = ({route}) => {
   const [pressedButton, setPressedButton] = useState(null);
   const [TypeData, setTypeData] = useState([]);
   const [gradientColors, setGradientColors] = useState(["#FFFFFF", "#FFFFFF"]);
+  const [data, setData] = useState(fetchedData);
+
+  async function updateData(documentId, newData) {
+    const UpdeteValue = doc(db, 'MuseumApp', documentId);
+    await updateDoc(UpdeteValue, newData);
+    console.log('Document successfully updated!');
+  }
+
+  const toggleLike = async (item) => {
+    const newLikeValue = item.Like === 0 ? 1 : 0;
+    const newData = { Like: newLikeValue };
+    await updateData(item.id, newData);
+
+    // Update local state to reflect the change
+    const newDataArray = fetchedData.map((i) =>
+      i.id === item.id ? { ...i, Like: newLikeValue } : i
+    );
+    setFetchedData(newDataArray);
+  };
 
    useFonts({
     'Kanit-Medium': require('../assets/fonts/Kanit-Medium.ttf'),
@@ -42,35 +61,41 @@ const AllMuseum = ({route}) => {
     fetchType();
   }, []);
 
-  async function fetchData() {
-    try {
-      const querySnapshot = await getDocs(collection(db, "MuseumApp"));
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Set both fetched and original data
-      setFetchedData(data);
-      setOriginalData(data);
-    
-      // Filter data if route.params.Type is not empty
-      if (route.params && route.params.Type !== '') {
-        const TypeId = route.params.Type;
-        const filteredData = data.filter(type =>
-          type.Type.toUpperCase().includes(TypeId.toUpperCase())
-        );
-        setFetchedData(filteredData);
-      } else {
-        // If route.params.Type is empty, set selectData to null or empty array
-        setSelectData([]); // or setSelectData(null);
-      }
-    } catch (error) {
-      console.log("Error getting documents: ", error);
-    }
-  }
-  
-  
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "MuseumApp"));
+        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const sortedData = data.sort((a, b) => b.Like - a.Like);
+        setFetchedData(sortedData);
+        setOriginalData(sortedData);
+      } catch (error) {
+        if (error.code === 'permission-denied') {
+          alert('You do not have permission to access this data.');
+        } else {
+          alert('An error occurred while fetching data.');
+        }
+        console.error("Error fetching documents: ", error);
+      }
+    };
     fetchData();
+  }, [route.params]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "MuseumApp"), (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Sort data by Like status (descending)
+      const sortedData = data.sort((a, b) => b.Like - a.Like);
+
+      // Update fetched data when there's a change
+      setFetchedData(sortedData);
+    });
+
+    // Clean up subscription on unmount
+    return () => unsubscribe();
   }, []);
+  
   
   
   async function fetchType() {
@@ -164,21 +189,15 @@ const AllMuseum = ({route}) => {
               </View>
             </View>
           </View>
-          <Image
+          <TouchableOpacity onPress={() => toggleLike(item)}>
+            <Image
               style={styles.component1Icon}
-              contentFit="cover"
-              source={require("../assets/component-1.png")}
+              source={item.Like === 0 ? require('../assets/component-11.png') : require('../assets/component-1.png')}
             />
+          </TouchableOpacity>
         </View>))}
       </Pressable>
       <View style={[styles.frameParent, styles.statusLayout]}>
-        <Pressable onPress={() => navigation.navigate("Filter")}>
-      <Image
-          style={[styles.iconlylightsearch,{marginLeft:150},{top:20}]}
-          contentFit="cover"
-          source={require("../assets/iconlylightfilter.png")}
-        />
-        </Pressable>
   {!isInputVisible && (
     <View>
       <Text style={[styles.text5]}>พิพิธภัณฑ์ทั้งหมด</Text>
@@ -204,7 +223,7 @@ const AllMuseum = ({route}) => {
     ) : (
       <TouchableOpacity onPress={toggleInputVisibility}>
         <Image
-          style={[styles.iconlylightsearch,{marginLeft:100}]}
+          style={[styles.iconlylightsearch,{marginLeft:170}]}
           contentFit="cover"
           source={require("../assets/iconlylightsearch4.png")}
         />
